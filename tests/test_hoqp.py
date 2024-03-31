@@ -1,6 +1,6 @@
 import numpy as np
 from copy import copy, deepcopy
-from hoqp_wbc.qp import hoqp
+from qb_wbc.qp import hoqp
 
 def test_hoqp_level():
     task1 = hoqp.Task(
@@ -24,10 +24,12 @@ def test_hoqp_level():
     v_2 = level2.v_p_star
 
     eps = 1e-5
-    assert np.allclose(task1.A @ x_2, task1.b, eps, eps)
-    assert np.allclose(task2.A @ x_2, task2.b, eps, eps)
-    assert all(task1.D @ x_2 <= task1.f)
-    assert all(task2.D @ x_2 <= task2.f)
+
+    print(task1.get_fitness(x_1))
+    print(task2.get_fitness(x_2))
+
+    assert task1.is_fit(x_1, eps)
+    assert task2.is_fit(x_2, eps)
 
 def test_hoqp_solver():
     task1 = hoqp.Task(
@@ -48,4 +50,10 @@ def test_hoqp_solver():
     h.update_n_decision(4)
     h.add_task(0, t1)
     h.add_task(1, t2)
-    h.solve()
+    x = h.solve()
+
+    assert x is not None
+    eps = 1e-5
+    assert task1.is_fit(x, eps)
+    assert task2.is_fit(x, eps)
+

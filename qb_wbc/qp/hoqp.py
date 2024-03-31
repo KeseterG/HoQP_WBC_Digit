@@ -1,11 +1,10 @@
-import functools
 import time
 from typing import List, Callable, Optional
 
 import qpsolvers
 import scipy
 
-from hoqp_wbc.utils.common_types import *
+from qb_wbc.utils.common_types import *
 from .task import Task
 
 
@@ -30,6 +29,8 @@ class HoQPLevel:
         self.f: Vector = None
 
         self.Z_p_plus: Matrix = None
+
+        self.previous_sol = None
 
     def _formulate(self) -> None:
         self.nv = self.tasks.D.shape[0]
@@ -56,15 +57,16 @@ class HoQPLevel:
         self._build_f()
 
     def _solve(self) -> bool:
-        sol = qpsolvers.solve_qp(
-            P=self.H, q=self.c, G=self.D, h=self.f, solver="clarabel"
+        self.previous_sol = qpsolvers.solve_qp(
+            P=self.H, q=self.c, G=self.D, h=self.f,
+            solver="osqp", polish=True, check_termination=25
         )
 
-        if sol is None:
+        if self.previous_sol is None:
             return False
 
-        self.z_p = sol[:self.nz]
-        self.v_p = sol[self.nz:self.nz + self.nv]
+        self.z_p = self.previous_sol[:self.nz]
+        self.v_p = self.previous_sol[self.nz:self.nz + self.nv]
 
         return True
 
@@ -145,6 +147,7 @@ class HoQP:
         self.n_des = n_des  # number of decision variables inside x, the target solution vector.
         self.n_tasks: int = 0
         self.solve_count = 0
+        self.verbose = True
 
     def add_task(self, priority: int, task: Callable[[], Task]) -> None:
         if priority < 0 or priority > self.lowest_priority + 1:
@@ -186,11 +189,20 @@ class HoQP:
                 failed = True
                 break
 
-        print(f"HoQP Problem {self.solve_count} solved {'success' if not failed else 'FAILED'}.")
-        print(f"\t Time taken: {(time.time() - start_time) * 1000:.2f} ms.")
+        sol = None if failed else self.hoqp_levels[-1].get_solution()
+        if self.verbose:
+            print(f"HoQP Problem {self.solve_count} solved {'success' if not failed else 'FAILED'}.")
+            print(f"\t Time taken: {(time.time() - start_time) * 1000:.2f} ms.")
+            if not failed:
+                for level in self.task_levels:
+                    for task in level:
+                        t: Task = task()
+                        eq_r, ueq_s = t.get_fitness(sol)
+                        print(eq_r, ueq_s)
+
         self.solve_count += 1
 
-        return None if failed else self.hoqp_levels[-1].get_solution()
+        return sol
 
     def summary(self) -> None:
         print("Solving HoQP.")

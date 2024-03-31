@@ -55,3 +55,6 @@ setuptools==68.2.0
 tomli==2.0.1
     # via cmeel
 wheel==0.41.2
+
+osqp~=0.6.5
+mujoco~=3.1.3
